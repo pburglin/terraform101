@@ -170,22 +170,14 @@ Destroy complete! Resources: 1 destroyed.
 
 ## Scenario 2 - create the simplest web server
 
+Let's create an EC2 instance that actually do something.
+
 In Atom, edit file ec2instance.tf and replace it with this content:
 ```
 provider "aws" {
   region = "us-east-1"
   access_key = "AKIA****************"
   secret_key = "9lII************************************"
-}
-
-resource "aws_security_group" "instance" {
-  name = "debug-webserver"
-  ingress {
-    from_port = 8080
-    to_port = 8080
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 }
 
 resource "aws_instance" "webserver" {
@@ -202,6 +194,16 @@ resource "aws_instance" "webserver" {
 
   tags {
     Name = "simple-webserver"
+  }
+}
+
+resource "aws_security_group" "instance" {
+  name = "debug-webserver"
+  ingress {
+    from_port = 8080
+    to_port = 8080
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 ```
@@ -234,6 +236,8 @@ terraform destroy
 
 ## Scenario 3 - introducing variables!
 
+Let's replace the hardcoded port 8080 with a variable.
+
 In Atom, edit file ec2instance.tf and replace it with this content:
 ```
 provider "aws" {
@@ -245,16 +249,6 @@ provider "aws" {
 variable "server_port" {
   description = "The port the server will use for HTTP requests"
   default = 8080
-}
-
-resource "aws_security_group" "instance" {
-  name = "debug-webserver"
-  ingress {
-    from_port = "${var.server_port}"
-    to_port = "${var.server_port}"
-    protocol = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 }
 
 resource "aws_instance" "webserver" {
@@ -271,6 +265,16 @@ resource "aws_instance" "webserver" {
 
   tags {
     Name = "simple-webserver"
+  }
+}
+
+resource "aws_security_group" "instance" {
+  name = "debug-webserver"
+  ingress {
+    from_port = "${var.server_port}"
+    to_port = "${var.server_port}"
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 ```
@@ -299,7 +303,11 @@ Click on the new instance, and in the bottom right copy the Public IP address. P
 terraform destroy
 ```
 
+**Important:** now that you know how variables work in Terraform, you should make use of them for parameters like region, access_key and secret_key. **Since your Terraform files may end up in a git repository you do not want it to have secrets like user credentials.**
+
 ## Scenario 4 - removing single point of failures
+
+In this final scenario we will deploy our simple webserver as a cluster of EC2 instances running in multiple availability zones. The cluster will have a load balancer with health checks and self-healing capabilities.
 
 In Atom, edit file ec2instance.tf and replace it with this content:
 ```
