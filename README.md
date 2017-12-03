@@ -119,7 +119,7 @@ Initializing provider plugins...
 Terraform has been successfully initialized!
 ```
 
-2. Check what terraform will do if you apply it:
+2. Check what terraform will do before you apply it:
 ```
 terrafform plan
 
@@ -275,7 +275,6 @@ resource "aws_instance" "webserver" {
 }
 ```
 
-
 **Important:** again, replace the access_key and secret_key with the credentials generated for your user **terraform**.
 
 This time, we:
@@ -299,3 +298,155 @@ Click on the new instance, and in the bottom right copy the Public IP address. P
 ```
 terraform destroy
 ```
+
+## Scenario 4 - removing single point of failures
+
+In Atom, edit file ec2instance.tf and replace it with this content:
+```
+provider "aws" {
+  region = "us-east-1"
+  access_key = "AKIA****************"
+  secret_key = "9lII************************************"
+}
+
+variable "server_port" {
+  description = "The port the server will use for HTTP requests"
+  default = 8080
+}
+
+output "elb_dns_name" {
+  value = "${aws_elb.webserver.dns_name}"
+}
+
+data "aws_availability_zones" "all" {}
+
+resource "aws_elb" "webserver" {
+  name = "simple-webserver"
+  security_groups = ["${aws_security_group.elb.id}"]
+  availability_zones = ["${data.aws_availability_zones.all.names}"]
+
+  health_check {
+    healthy_threshold = 2
+    unhealthy_threshold = 2
+    timeout = 3
+    interval = 30
+    target = "HTTP:${var.server_port}/"
+  }
+
+  listener {
+    lb_port = 80
+    lb_protocol = "http"
+    instance_port = "${var.server_port}"
+    instance_protocol = "http"
+  }
+}
+
+resource "aws_security_group" "elb" {
+  name = "simple-webserver-elb-sg"
+
+  egress {
+    from_port = 0
+    to_port = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port = "80"
+    to_port = "80"
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_autoscaling_group" "webserver" {
+  launch_configuration = "${aws_launch_configuration.webserver.id}"
+  availability_zones = ["${data.aws_availability_zones.all.names}"]
+  min_size = 2
+  max_size = 5
+
+  load_balancers = ["${aws_elb.webserver.name}"]
+  health_check_type = "ELB"
+
+  tag {
+    key = "Name"
+    value = "simple-webserver"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_launch_configuration" "webserver" {
+  image_id = "ami-aa2ea6d0"
+  instance_type = "t2.micro"
+  security_groups = ["${aws_security_group.instance.id}"]
+
+  user_data = <<-EOF
+              #!/bin/bash
+              echo "Hello world" > index.html
+              nohup busybox httpd -f -p "${var.server_port}" &
+              EOF
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_security_group" "instance" {
+  name = "simple-webserver-instance-sg"
+  ingress {
+    from_port = "${var.server_port}"
+    to_port = "${var.server_port}"
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+```
+
+**Important:** again, replace the access_key and secret_key with the credentials generated for your user **terraform**.
+
+This time, we:
+* Set a launch configuration for as many EC2 instances we need; The EC2 instances will all listed on port 8080
+* Set an auto scaling group with min 2 EC2 instances and max of 5;
+* Set a security group for our load balancer with ingress open on port 80;
+* Set a load balancer on all availability zones forwarding traffic to port 8080 (or whatever you set for variable server_port);
+* Set healthchecks in the load balancer to run every 30 seconds to remove any failing webserver from rotation;
+* Ask Terraform to output at the end of the process the load balancer's dynamic DNS name;
+
+1. Review what terraform will create:
+```
+terraform plan
+```
+
+2. Apply the changes:
+```
+terraform apply
+...
+Apply complete! Resources: 5 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+elb_dns_name = simple-webserver-46581985.us-east-1.elb.amazonaws.com
+```
+
+Copy this output for "elb_dns_name", we will use it in just a bit.
+
+3. Log back to AWS console, go to EC2 and confirm you now have two new EC2 instances created by terraform.
+
+Click on Load Balancers, confirm we now have a "simple-webserver" load balancer running.
+
+Scroll down and review "Port Configuration: 80 (HTTP) forwarding to 8080 (HTTP)".
+
+4. In your browser, try the DNS name you received from terraform for "elb_dns_name".
+
+Note: it might take couple minutes for the DNS to propagate. If it doesn't work in the first try, just give it a minute and try again.
+
+5. Discard the resources:
+```
+terraform destroy
+```
+
+That's it for this intro, you now know how to leverage Terraform to automate various manual tasks in the AWS console.
