@@ -65,7 +65,9 @@ Note: if your environment has more recent versions of these components it should
 
 # Lab
 
-Review Terraform modules here: https://www.terraform.io/docs/modules/sources.html
+Review list of Terraform providers here: https://www.terraform.io/docs/providers/index.html
+
+Click on AWS. You will find at the left side all the resources Terraform can manipulate in AWS. At the right side you will find various examples.
 
 ## Setup terraform user in AWS
 
