@@ -151,6 +151,8 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 
 4. Log back to AWS console, go to EC2 and confirm you now have a new EC2 instance created by terraform.
 
+That's it! You can now create as many EC2 instances as you want via command line.  However, these EC2 instances don't do anything. Let's destroy it and check the next use case below to learn how to get our EC2 instances setup as web servers.
+
 5. Destroy changes:
 ```
 terraform destroy
@@ -164,4 +166,68 @@ Do you really want to destroy?
   Enter a value: yes
 aws_instance.webserver: Destruction complete after 1m11s
 Destroy complete! Resources: 1 destroyed.
+```
+
+## Use case 2 - create the simplest web server
+
+In Atom, edit file ec2instance.tf and replace it with this content:
+```
+provider "aws" {
+  region = "us-east-1"
+  access_key = "AKIA****************"
+  secret_key = "9lII************************************"
+}
+
+resource "aws_security_group" "instance" {
+  name = "debug-webserver"
+  ingress {
+    from_port = 8080
+    to_port = 8080
+    protocol = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "webserver" {
+  ami = "ami-aa2ea6d0"
+  instance_type = "t2.micro"
+
+  vpc_security_group_ids = ["${aws_security_group.instance.id}"]
+
+  user_data = <<-EOF
+              #!/bin/bash
+              echo "Hello world" > index.html
+              nohup busybox httpd -f -p 8080 &
+              EOF
+
+  tags {
+    Name = "simple-webserver"
+  }
+}
+```
+
+**Important:** again, replace the access_key and secret_key with the credentials generated for your user **terraform**.
+
+This time, we:
+* Set parameter "user_data" with commands executed as root as soon the EC2 instance starts. These commands start a lightweight webserver on port 8080 that responds to browser requests with the word "Hello world";
+* Set a tag to name our EC2 instance as "simple-webserver";
+* Set a security group to allow traffic to port 8080 to our webserver;
+
+1. Review what terraform will create:
+```
+terraform plan
+```
+
+2. Apply the changes:
+```
+terraform apply
+```
+
+3. Log back to AWS console, go to EC2 and confirm you now have a new EC2 instance created by terraform.
+
+Click on the new instance, and in the bottom right copy the Public IP address. Paste it into your browser, add ":8080" and confirm you can see the webserver's output "Hello world".
+
+4. Discard the resources:
+```
+terraform destroy
 ```
