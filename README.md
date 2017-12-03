@@ -440,11 +440,19 @@ Click on Load Balancers, confirm we now have a "simple-webserver" load balancer 
 
 Scroll down and review "Port Configuration: 80 (HTTP) forwarding to 8080 (HTTP)".
 
-4. In your browser, try the DNS name you received from terraform for "elb_dns_name".
+4. In your browser, enter the DNS name you received from Terraform for "elb_dns_name". You should receive the response "Hello world".
 
 Note: it might take couple minutes for the DNS to propagate. If it doesn't work in the first try, just give it a minute and try again.
 
-5. Discard the resources:
+5. Test failover and self-healing:
+
+In the AWS console, go to EC2 / Instances and terminate one of the two webserver instances.
+
+Once one of the instances go down, try hitting the "elb_dns_name" DNS again - it should work since we still have one remaining EC2 instance.
+
+Now give it a minute, and then refresh the EC2 / Instances screen - you should get a new EC2 instance created automatically!
+
+6. Discard the resources:
 ```
 terraform destroy
 ```
