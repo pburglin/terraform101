@@ -5,7 +5,40 @@ Intro to Terraform
 
 Terraform is an open-source tool designed to enable infrastructure as code. It is similar to AWS CloudFormation, but supports multiple platforms and services.
 
-# Pre-requirements
+# Sample scenario
+
+This section describes the manual steps we will automate with Terraform. Go over this scenario once, then compare it with the last section of this lesson.
+
+* Login to the AWS dashboard, under the Compute section select EC2
+* Create an Application Load Balancer - AppLB - listening on port 80, forwarding traffic to port 8080. Select AZs "a" and "b" of your default region - e.g. us-east-1a and us-east-1b
+* Under Configure Security Groups, select Create a new security group and make sure the load balancer security policy has a rule to open port 80 to ALL sources
+* Create a new Target Group - AppTG - using port 8080
+
+Note: take a note of the security group ID created for our load balancer. it will look like this: "sg-9118d3d8"
+
+* Create a new Launch Configuration - AppLC. Select Ubuntu Server 16.04 LTS (HVM)
+* Under Configure details, select Advanced Details and enter this code under User data to setup a simple web server:
+```
+#!/bin/bash
+echo "Hello world" > index.html
+nohup busybox httpd -f -p "8080" &
+```
+
+* Under Configure Security Group, create a new one with "Custom TCP rule", port range = 8080, source = "Custom IP" and set to the security group created for our load balancer (e.g. "sg-9118d3d8"). This last step is needed to disable direct traffic to EC2 instances; but it is better to keep them in private subnet instead
+
+* Create an auto scaling group - AppASG. Select subnets for AZs "a" and "b" of your default region - e.g. us-east-1a and us-east-1b
+
+* Finally, let's link our load balancer with the auto-scaling group: open the target group "AppTG", under Targets click Edit, check the new instance, then click Add to registered keeping port 8080 then click Save.
+
+At this point our config is finished and we should be able to hit the load balancer's public DNS on port 80 and get the "Hello world" response from our server.
+
+Note: it might take couple mins for the load balancer to initialize. If you still got errors after few minutes you may need to revisit these steps.
+
+Even though these are simple steps, we will be better by automating them to speed it up and ensure repeatability. Terraform to the rescue! 
+
+Make sure you remember to clean up your AWS environment removing the ASG, LC, TG, LB and SGs created from these steps to avoid any extra costs.
+
+# Terraform Pre-requirements
 
 ## 1. An AWS Account
 
